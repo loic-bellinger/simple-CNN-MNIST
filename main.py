@@ -9,7 +9,6 @@ from torchvision.io import read_image, ImageReadMode
 from torchvision.transforms import v2
 from torchvision.transforms.functional import invert
 
-
 class CNN(nn.Module):
     def __init__(self):
         super(CNN, self).__init__()
@@ -77,28 +76,35 @@ def img_to_tensor(path):
     img = read_image(path, mode=ImageReadMode.GRAY)  # img est un tenseur en nuance de gris
     img = invert(img)  # mon image paint est en noire sur fond blanc, il faut inverser les couleurs
     transform = v2.Compose([
-        v2.ToDtype(torch.float32, scale=True),
         v2.Resize((28, 28)),
-        v2.Normalize((0.5,), (0.5,))  # Normalize the image to range [-1, 1]
+        v2.ConvertImageDtype(torch.float32),
+        v2.Normalize((0.1307,), (0.3081,))
     ])
     out = transform(img).unsqueeze(0)
     return out
 
 
 # Fonction pour prédire la classe d'une image donnée
-def predict(img_path, model, device):
-    # Pas terminé :(
-    image_tensor = img_to_tensor(img_path).to(device)
+def predict(img_path):
+    device = get_device()
+    model = CNN().to(device)
+    model.load_state_dict(torch.load('./model/CNN.pth'))
     model.eval()  # Mettre le modèle en mode évaluation
+
+    image_tensor = img_to_tensor(img_path).to(device)
     with torch.no_grad():  # Désactiver le calcul des gradients
         output = model(image_tensor)
         _, predicted = torch.max(output, 1)  # Obtenir la classe prédite
     print(f"Prédiction: {predicted.item()}")  # Afficher la classe prédite
 
 
+def get_device():
+    return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
 def main():
     # Définir l'appareil (CPU ou GPU)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = get_device()
 
     # Hyperparamètres (paramètres que l'on fixe avant l'entraînement et qui influent sur la performance du modèle)
     n_epochs = 14
@@ -125,7 +131,7 @@ def main():
     train_loader = DataLoader(train_data, batch_size=batch_size_train, shuffle=True, num_workers=4)
 
     # Créer un DataLoader pour les données de test
-    test_loader = DataLoader(test_data, batch_size=batch_size_test, shuffle=True, num_workers=4)
+    test_loader = DataLoader(test_data, batch_size=batch_size_test, num_workers=4)
 
     # Initialiser le modèle et le déplacer sur le device (GPU ou CPU)
     model = CNN().to(device)
@@ -141,10 +147,13 @@ def main():
         test(model, device, test_loader)
         scheduler.step()
 
-    # Prédire la classe d'une image donnée
-    predict("./images/image_number.jpg", model, device)  # Remplacer par le chemin de votre image
+    torch.save(model.state_dict(), './model/CNN.pth')
 
 
 # Main function
 if __name__ == '__main__':
-    main()
+    # Train the model by calling main()
+    # main()
+
+    # Prédire la classe d'une image donnée
+    predict("./images/4.jpg")  # Remplacer par le chemin de votre image
